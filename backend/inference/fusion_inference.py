@@ -4,7 +4,7 @@ from typing import Dict, Tuple
 import logging
 
 from backend.models.fusion_model import MultimodalFusionModel
-from models.classifier import DiseaseClassifier
+from backend.models.classifier import DiseaseClassifier
 
 logger = logging.getLogger(__name__)
 

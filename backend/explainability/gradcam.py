@@ -10,7 +10,7 @@ from pytorch_grad_cam.utils.image import show_cam_on_image
 from PIL import Image
 import logging
 
-from models.vit_model import MedicalViTModel
+from backend.models.vit_model import MedicalViTModel
 
 logger = logging.getLogger(__name__)
 
