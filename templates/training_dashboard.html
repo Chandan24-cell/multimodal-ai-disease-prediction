@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multimodal Healthcare AI | Training</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='training_dashboard.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<main class="shell">
+  <header class="hero"><div><p class="eyebrow">MULTIMODAL HEALTHCARE AI</p><h1>Live training dashboard</h1><p class="subhead">NIH Chest X-ray14 model telemetry, read directly from the active training log.</p></div><div class="live-badge"><span class="pulse"></span><span id="state">LIVE</span></div></header>
+
+  <section class="metrics-grid" aria-label="Training status">
+    <article class="metric-card cyan"><span>Current epoch</span><strong id="epoch">--</strong><small id="epochTotal">of --</small></article>
+    <article class="metric-card blue"><span>Current batch</span><strong id="batch">--</strong><small id="batchTotal">of --</small></article>
+    <article class="metric-card orange"><span>Current loss</span><strong id="loss">--</strong><small>raw logged value</small></article>
+    <article class="metric-card green"><span>Batches / second</span><strong id="batchSpeed">--</strong><small id="timePerBatch">-- sec / batch</small></article>
+    <article class="metric-card purple"><span>Elapsed(Run time training)</span><strong id="elapsed">--</strong><small>training clock</small></article>
+    <article class="metric-card pink"><span>Estimated ETA (Remaining time duration)</span><strong id="eta">--</strong><small>smoothed throughput</small></article>
+  </section>
+
+  <section class="panel speedometer-panel">
+    <div class="panel-heading"><div><p class="eyebrow">MODEL TRAINING SPEED</p><h2>Observed training throughput</h2></div><span class="source-tag">Live telemetry</span></div>
+    <div class="speedometer-layout">
+      <div class="gauge-wrap"><canvas id="speedGauge" width="520" height="300" aria-label="Live model training speed gauge"></canvas><div class="gauge-center"><strong id="gaugeSpeed">--</strong><span>images/sec</span></div></div>
+      <div class="speed-details"><div><span>Current</span><strong id="currentSpeed">-- images/sec</strong></div><div><span>Average</span><strong id="averageSpeed">-- images/sec</strong></div><div><span>Peak</span><strong id="peakSpeed">-- images/sec</strong></div><div><span>Batches/sec</span><strong id="gaugeBatchSpeed">--</strong></div><div><span>Time/batch</span><strong id="gaugeTimeBatch">-- sec</strong></div><div><span>Current batch</span><strong id="gaugeBatch">--</strong></div></div>
+    </div>
+  </section>
+
+  <section class="two-col">
+    <section class="panel progress-panel"><div class="panel-heading"><div><p class="eyebrow">TRAINING PROGRESS</p><h2>Two views of completion</h2></div><span class="source-tag">Calculated from log</span></div><div class="progress-label"><span>Current epoch</span><b id="epochProgress">--</b></div><div class="progress-track"><div id="epochBar" class="progress-bar cyan-bar"></div></div><div class="progress-label"><span>Overall training</span><b id="overallProgress">--</b></div><div class="progress-track"><div id="overallBar" class="progress-bar blue-bar"></div></div><div class="progress-foot"><span id="batchSummary">--</span><span id="lastUpdate">Last update: --</span></div></section>
+    <section class="panel coverage-panel"><div class="panel-heading"><div><p class="eyebrow">TRAINING DATA COVERAGE</p><h2>Observed image throughput</h2></div><span class="source-tag">Batch size: <b id="batchSize">16</b></span></div><div class="coverage-number"><strong id="imagesProcessed">--</strong><span>/ ~12,000 images</span></div><div class="progress-track"><div id="coverageBar" class="progress-bar orange-bar"></div></div><div class="coverage-grid"><div><span>Subset progress</span><b id="datasetProgress">--</b></div><div><span>Images / second</span><b id="imageSpeed">--</b></div></div><p class="muted">Current training subset is metadata supplied for this run; full NIH dataset is 112,120 images.</p></section>
+  </section>
+
+  <section class="panel chart-panel"><div class="panel-heading"><div><p class="eyebrow">LIVE LOSS</p><h2>Raw and smoothed training loss</h2></div><span class="updated">Polling every 1.5s</span></div><div class="chart-wrap"><canvas id="lossChart"></canvas></div></section>
+  <section class="panel chart-panel"><div class="panel-heading"><div><p class="eyebrow">EPOCH VISUALIZATION</p><h2>Loss grouped by epoch</h2></div><span class="updated">Boundaries preserved</span></div><div class="chart-wrap short"><canvas id="epochChart"></canvas></div></section>
+
+  <section class="two-col">
+    <section class="panel"><div class="panel-heading"><div><p class="eyebrow">LOSS ANALYTICS</p><h2>Observed statistics</h2></div><span class="source-tag">From logged values</span></div><div class="analytics-grid"><div><span>Current</span><b id="currentStat">--</b></div><div><span>Moving average</span><b id="movingAverage">--</b></div><div><span>Minimum</span><b id="minimumLoss">--</b></div><div><span>Average</span><b id="averageLoss">--</b></div><div><span>Change</span><b id="lossChange">--</b></div></div></section>
+    <section class="panel"><div class="panel-heading"><div><p class="eyebrow">VALIDATION</p><h2>Quality signals</h2></div><span class="source-tag">Only when logged</span></div><div class="analytics-grid"><div><span>Validation loss</span><b id="validationLoss">Not currently logged</b></div><div><span>Macro AUC</span><b id="validationAuc">Not currently logged</b></div><div><span>Macro F1</span><b id="validationF1">Not currently logged</b></div></div></section>
+  </section>
+
+  <section class="two-col">
+    <section class="panel"><div class="panel-heading"><div><p class="eyebrow">DATASET OVERVIEW</p><h2>NIH Chest X-ray14</h2></div><span class="source-tag">Static metadata</span></div><dl class="details"><dt>Full dataset</dt><dd>112,120 images</dd><dt>Current training subset</dt><dd>~12,000 images</dd><dt>Unique patients</dt><dd>~30,805</dd><dt>Image size</dt><dd>Generally 1024 × 1024</dd><dt>Task</dt><dd>Multi-label classification</dd><dt>Labels</dt><dd>15: 14 findings + No Finding</dd></dl></section>
+    <section class="panel"><div class="panel-heading"><div><p class="eyebrow">TASK CONFIGURATION</p><h2>Multi-label classification</h2></div><span class="source-tag">Dataset metadata</span></div><p class="task-copy">Finding Labels may contain multiple positive findings separated by <code>|</code>. For example, <b>Pneumonia | Effusion</b> sets both labels to 1; this is not a choose-one task.</p><div class="label-cloud" id="labelCloud"></div><p class="muted">Bounding-box annotations are available for a subset of images only.</p></section>
+  </section>
+
+  <footer><span id="logStatus">Waiting for log updates</span> · Read-only dashboard · training process untouched</footer>
+</main>
+<script src="{{ url_for('static', filename='training_dashboard.js') }}"></script>
+</body>
+</html>

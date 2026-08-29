@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+models/
+datasets/
+knowledge_base/
+*.log
