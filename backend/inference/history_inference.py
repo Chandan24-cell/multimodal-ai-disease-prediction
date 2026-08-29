@@ -4,7 +4,7 @@ import numpy as np
 from typing import Dict, Any, Tuple
 import logging
 
-from backend.models.history_model import MedicalHistoryModel
+from models.history_model import MedicalHistoryModel
 
 logger = logging.getLogger(__name__)
 

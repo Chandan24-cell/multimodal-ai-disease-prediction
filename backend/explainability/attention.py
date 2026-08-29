@@ -3,7 +3,7 @@ import torch
 from typing import List, Dict
 import logging
 
-from backend.models.clinical_model import ClinicalTransformerModel
+from models.clinical_model import ClinicalTransformerModel
 
 logger = logging.getLogger(__name__)
 
