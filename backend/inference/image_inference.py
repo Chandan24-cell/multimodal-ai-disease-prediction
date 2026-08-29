@@ -1,6 +1,6 @@
 # backend/inference/image_inference.py
 import torch
-from transformers import ViTImageProcessor
+from torchvision import transforms
 from PIL import Image
 import io
 from typing import Dict, Tuple
@@ -27,23 +27,23 @@ class ImageInferencePipeline:
         self.device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
         logger.info(f"Using device: {self.device}")
 
-        # POINT TO YOUR ACTUALLY TRAINED MEDICAL MODEL
-        # Use an absolute path or ensure the relative path is correct from the backend dir
-        import os
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        model_path = os.path.join(base_dir, "models", "vit", "medical_finetuned")
-        
         self.num_labels = 14 
         
-        self.processor = ViTImageProcessor.from_pretrained("google/vit-base-patch16-224")
+        self.processor = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+        ])
         
-        # Load the custom MedicalViTModel with the local path
-        self.model = MedicalViTModel(num_labels=self.num_labels, model_name=model_path)
+        self.model = MedicalViTModel(num_labels=self.num_labels)
 
         self.model.to(self.device)
         self.model.eval()
         
-        logger.info(f"✅ Successfully loaded FINETUNED medical model from {model_path}")
+        logger.info("Successfully loaded medical image model")
 
         # TODO: UPDATE THESE CLASS NAMES TO MATCH YOUR SPECIFIC DATASET
         self.class_names = [
@@ -57,8 +57,7 @@ class ImageInferencePipeline:
     def preprocess_image(self, image_bytes: bytes) -> torch.Tensor:
         """Convert raw image bytes to preprocessed tensor."""
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        inputs = self.processor(images=image, return_tensors="pt")
-        return inputs["pixel_values"].to(self.device)
+        return self.processor(image).unsqueeze(0).to(self.device)
 
     def predict(self, image_bytes: bytes) -> Tuple[Dict[str, float], torch.Tensor]:
         """
