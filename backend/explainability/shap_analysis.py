@@ -5,7 +5,7 @@ import shap
 import logging
 from typing import List, Dict
 
-from models.history_model import MedicalHistoryModel
+from backend.models.history_model import MedicalHistoryModel
 
 logger = logging.getLogger(__name__)
 

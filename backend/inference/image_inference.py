@@ -5,8 +5,7 @@ from PIL import Image
 import io
 from typing import Dict, Tuple
 import logging
-
-from models.vit_model import MedicalViTModel
+from backend.models.vit_model import MedicalViTModel
 
 logger = logging.getLogger(__name__)
 

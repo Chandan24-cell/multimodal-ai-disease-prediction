@@ -6,7 +6,7 @@ import logging
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../backend')))
-from models.fusion_model import MultimodalFusionModel
+from backend.models.fusion_model import MultimodalFusionModel
 from models.classifier import DiseaseClassifier
 
 logger = logging.getLogger(__name__)

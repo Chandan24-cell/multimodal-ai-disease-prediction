@@ -7,7 +7,7 @@ import logging
 # Ensure backend is in sys.path to import the model
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../backend')))
-from models.clinical_model import ClinicalTransformerModel
+from backend.models.clinical_model import ClinicalTransformerModel
 from transformers import AutoTokenizer
 
 logger = logging.getLogger(__name__)

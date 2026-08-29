@@ -4,7 +4,7 @@ from transformers import AutoTokenizer
 from typing import Dict, Tuple
 import logging
 
-from models.clinical_model import ClinicalTransformerModel
+from backend.models.clinical_model import ClinicalTransformerModel
 
 logger = logging.getLogger(__name__)
 
