@@ -7,7 +7,7 @@ import logging
 # Ensure backend is in sys.path to import the model
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../backend')))
-from models.vit_model import MedicalViTModel
+from backend.models.vit_model import MedicalViTModel
 
 logger = logging.getLogger(__name__)
 
