@@ -1,15 +1,20 @@
-version: '3.8'
-
 services:
   mongodb:
-    image: mongo:latest
+    image: mongo:7.0
     container_name: healthcare_mongodb
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongodb_data:/data/db
     environment:
       - MONGO_INITDB_DATABASE=multimodal_healthcare
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     build:
@@ -18,19 +23,17 @@ services:
     container_name: healthcare_backend
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
-      - MONGODB_URI=mongodb://mongodb:27017/multimodal_healthcare
-      - JWT_SECRET_KEY=your_secret_key_here
-      - JWT_ALGORITHM=HS256
-      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
-      - LLM_PROVIDER=ollama
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - MONGODB_URI=mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongodb:27017/multimodal_healthcare?authSource=admin
     volumes:
       - ./backend:/app
       - ./backend/models:/app/models
       - ./knowledge_base:/app/knowledge_base
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload

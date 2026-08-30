@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 class ImageInferencePipeline:
     """
     Singleton pipeline for medical image inference.
-    Handles model loading, preprocessing, and prediction.
+    Handles ViT model loading, preprocessing, and prediction.
+    Outputs 768-dimensional embeddings for multimodal fusion.
     """
     _instance = None
 
@@ -38,21 +39,28 @@ class ImageInferencePipeline:
             )
         ])
         
-        self.model = MedicalViTModel(num_labels=self.num_labels)
+        # Initialize ViT model - strictly uses Vision Transformer
+        # No MobileNet fallback; checkpoint loading is built into MedicalViTModel
+        try:
+            self.model = MedicalViTModel(num_labels=self.num_labels)
+            self.model.to(self.device)
+            self.model.eval()
+            logger.info("Successfully loaded MedicalViTModel (768-dim embeddings, 14 labels)")
+        except Exception as e:
+            logger.error(f"Failed to initialize ViT model: {e}")
+            raise RuntimeError(
+                f"Cannot initialize ViT model. Ensure checkpoint exists at "
+                f"backend/models/vit/medical_finetuned/model.safetensors. Error: {e}"
+            )
 
-        self.model.to(self.device)
-        self.model.eval()
-        
-        logger.info("Successfully loaded medical image model")
-
-        # TODO: UPDATE THESE CLASS NAMES TO MATCH YOUR SPECIFIC DATASET
+        # 14 medical conditions for multi-label classification
         self.class_names = [
             "Atelectasis", "Cardiomegaly", "Effusion", "Infiltration", 
             "Mass", "Nodule", "Pneumonia", "Pneumothorax", 
             "Consolidation", "Edema", "Emphysema", "Fibrosis", 
             "Pleural_Thickening", "Hernia"
         ]
-        logger.info("Image Inference Pipeline initialized successfully.")
+        logger.info("Image Inference Pipeline initialized successfully (ViT-only).")
 
     def preprocess_image(self, image_bytes: bytes) -> torch.Tensor:
         """Convert raw image bytes to preprocessed tensor."""
@@ -61,24 +69,29 @@ class ImageInferencePipeline:
 
     def predict(self, image_bytes: bytes) -> Tuple[Dict[str, float], torch.Tensor]:
         """
-        Run inference on a single image.
+        Run inference on a single image using ViT backbone.
+        
         Returns:
             - predictions: Dictionary of class names and probabilities.
-            - embedding: The 768-dim tensor representing the image, for multimodal fusion.
+            - embedding: The 768-dim tensor (CLS token) for multimodal fusion.
         """
         pixel_values = self.preprocess_image(image_bytes)
         
         with torch.no_grad():
-            # Get the last hidden state for the embedding (CLS token)
+            # Get full hidden state for explainability
             last_hidden_state = self.model.get_last_hidden_state(pixel_values)
-            image_embedding = last_hidden_state[:, 0, :].squeeze(0).cpu() # Shape: (768,)
+            # CLS token embedding: (batch, 768) -> squeeze to (768,)
+            image_embedding = last_hidden_state[:, 0, :].squeeze(0).cpu()  # Shape: (768,)
+            assert image_embedding.shape == torch.Size([768]), \
+                f"Expected 768-dim embedding, got {image_embedding.shape}"
 
+            # Forward pass for predictions
             outputs = self.model(pixel_values)
-            logits = outputs.logits
+            logits = outputs.logits  # (batch, 14)
             probs = torch.sigmoid(logits).squeeze(0).cpu().numpy()
             
         predictions = {cls: float(prob) for cls, prob in zip(self.class_names, probs)}
         return predictions, image_embedding
 
-# Global instance to be imported by the API layer later
+# Global instance to be imported by the API layer
 image_inference = ImageInferencePipeline()

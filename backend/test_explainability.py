@@ -1,3 +1,7 @@
+"""
+Test the explainability pipeline with ViT-based image explanations.
+Expects model.vit attributes for Grad-CAM support.
+"""
 from explainability.pipeline import explainability_pipeline
 from PIL import Image
 import io
@@ -22,12 +26,19 @@ patient_data = {
 target_idx = 6
 
 print("Generating explanations... (This may take a few seconds)")
-explanations = explainability_pipeline.generate_full_explanation(
-    image_bytes, symptom_text, patient_data, target_idx
-)
+print("Note: Using ViT model with 768-dimensional embeddings")
 
-print("\n--- EXPLAINABILITY RESULTS ---")
-print(f"Image Heatmap generated: {'Yes' if explanations['image_heatmap'].startswith('data:image') else 'No'}")
-print(f"Text Attention Tokens: {len(explanations['text_attention'])} tokens analyzed.")
-print("Top 3 important words:", sorted(explanations['text_attention'], key=lambda x: x['attention_weight'], reverse=True)[:3])
-print("SHAP Values (Top 3 features):", sorted(explanations['tabular_shap'].items(), key=lambda x: abs(x[1]), reverse=True)[:3])
+try:
+    explanations = explainability_pipeline.generate_full_explanation(
+        image_bytes, symptom_text, patient_data, target_idx
+    )
+
+    print("\n--- EXPLAINABILITY RESULTS ---")
+    print(f"Image Heatmap generated: {'Yes' if explanations['image_heatmap'].startswith('data:image') else 'No'}")
+    print(f"Text Attention Tokens: {len(explanations['text_attention'])} tokens analyzed.")
+    print("Top 3 important words:", sorted(explanations['text_attention'], key=lambda x: x['attention_weight'], reverse=True)[:3])
+    print("SHAP Values (Top 3 features):", sorted(explanations['tabular_shap'].items(), key=lambda x: abs(x[1]), reverse=True)[:3])
+    print("\n✓ Explainability pipeline working with ViT model")
+except Exception as e:
+    print(f"\n✗ ERROR in explainability pipeline: {e}")
+    print("Ensure MedicalViTModel has model.vit attribute for Grad-CAM support")

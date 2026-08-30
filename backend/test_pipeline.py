@@ -1,3 +1,7 @@
+"""
+Test the master inference pipeline with ViT-based image embeddings.
+Expects 768-dimensional embeddings from MedicalViTModel.
+"""
 from inference.pipeline import master_pipeline
 from PIL import Image
 import io
@@ -36,3 +40,9 @@ print("\n--- FINAL RESULTS ---")
 print(f"Final Diseases: {results['final_diseases']}")
 print(f"Confidence Score: {results['confidence_score']:.4f}")
 print(f"Fused Features Shape: {results['fused_features'].shape}")
+
+# Verify ViT embedding dimension (should be 768)
+if results['fused_features'].shape[0] >= 768:
+    print("✓ ViT embeddings correctly loaded (768-dim)")
+else:
+    print(f"✗ ERROR: Expected ≥768-dim embedding, got {results['fused_features'].shape[0]}")

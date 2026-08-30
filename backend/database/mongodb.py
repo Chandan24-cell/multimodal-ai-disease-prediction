@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "super_secret_key_change_in_production"
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    LLM_PROVIDER: str = "mock"
+    OPENAI_API_KEY: Optional[str] = None
+    ANTHROPIC_API_KEY: Optional[str] = None
+    OLLAMA_BASE_URL: Optional[str] = None
 
     class Config:
         env_file = ".env"

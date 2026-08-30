@@ -1,0 +1,7 @@
+# Production override. Use with:
+# docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+services:
+  backend:
+    # Clear development bind mounts so this service runs the image's baked code.
+    volumes: !reset []
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4

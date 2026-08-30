@@ -1,6 +1,6 @@
 # backend/database/schemas.py
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 from enum import Enum
 
@@ -11,6 +11,10 @@ class Gender(str, Enum):
     MALE = "male"
     FEMALE = "female"
     OTHER = "other"
+
+class UserRole(str, Enum):
+    ADMIN = "Admin"
+    STAFF = "Staff"
 
 # ==========================================
 # Patient Schemas
@@ -68,6 +72,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
+    role: Literal["Admin", "Staff"] = "Staff"
 
 class UserDB(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -76,7 +81,9 @@ class UserDB(BaseModel):
     email: EmailStr
     full_name: str
     hashed_password: str
+    role: Literal["Admin", "Staff"] = "Staff"
     is_active: bool = True
+
 
 class Token(BaseModel):
     access_token: str

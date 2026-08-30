@@ -1,89 +1,30 @@
-# ==========================================
-# Python
-# ==========================================
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-.venv
-pip-log.txt
-pip-delete-this-directory.txt
-.pytest_cache/
-.coverage
-htmlcov/
-
-# ==========================================
-# Node / Frontend
-# ==========================================
-node_modules/
-frontend/build/
-frontend/dist/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# ==========================================
-# IDE / OS
-# ==========================================
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
-
-# ==========================================
-# Docker & Environment
-# ==========================================
-.env
-docker-compose.override.yml
-
-# ==========================================
-# Data, Models, and Weights (CRITICAL)
-# ==========================================
-# Do not commit large datasets, model weights, or vector stores
-datasets/
-models/*/weights/
-models/*/*.pt
-models/*/*.bin
-models/*/*.safetensors
-knowledge_base/documents/*.pdf
-knowledge_base/documents/*.txt
-data/vector_store/
-*.onnx
-*.h5
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-
-# Virtual environments
+*.egg-info/
 venv/
 .venv/
 env/
 
-# Environment variables / secrets
+# Secrets
 .env
-.env.*
-!.env.example
+.env.local
+.env.*.local
 
-# macOS
-.DS_Store
-
-# Logs
-*.log
-
-# Training outputs
-runs/datasets/
+# Datasets & training artifacts — never belong in git
+datasets/
 runs/
-*.safetensors
-*.pt
-*.pth
-*.h5
-*.keras
+training.log
+*.tfevents.*
+
+# Frontend build output & deps
+frontend/node_modules/
+frontend/dist/
+
+# Editor/OS junk
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

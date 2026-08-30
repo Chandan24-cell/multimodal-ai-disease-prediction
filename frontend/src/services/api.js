@@ -1,7 +1,9 @@
 import axios from 'axios';
 
-// Use the Vercel environment variable, with localhost as the development fallback.
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Render serves this build and FastAPI from the same origin in production.
+// Keep a direct backend URL for the local Vite development server.
+const API_BASE_URL = import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
 
 const api = axios.create({
   baseURL: API_BASE_URL,

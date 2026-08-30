@@ -13,7 +13,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 # Security utilities
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
@@ -53,7 +53,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> UserDB:
 
 @router.post("/register", response_model=Dict[str, str], status_code=status.HTTP_201_CREATED)
 async def register(user_in: UserCreate):
-    """Register a new user (Doctor/Admin)."""
+    """
+    Register a new user with role-based access control.
+    - First user registered in the system gets role="Admin"
+    - All subsequent users get role="Staff"
+    """
     existing_user = await db.db.users.find_one({"$or": [{"username": user_in.username}, {"email": user_in.email}]})
     if existing_user:
         raise HTTPException(status_code=400, detail="Username or email already registered")
@@ -61,8 +65,22 @@ async def register(user_in: UserCreate):
     user_dict = user_in.model_dump()
     user_dict["hashed_password"] = get_password_hash(user_dict.pop("password"))
     
+    # Determine if this is the first user in the system
+    user_count = await db.db.users.count_documents({})
+    if user_count == 0:
+        # First user is Admin
+        user_dict["role"] = "Admin"
+    else:
+        # Subsequent users default to Staff (can be overridden in request)
+        if "role" not in user_dict or user_dict["role"] is None:
+            user_dict["role"] = "Staff"
+    
     result = await db.db.users.insert_one(user_dict)
-    return {"message": "User registered successfully", "user_id": str(result.inserted_id)}
+    return {
+        "message": "User registered successfully",
+        "user_id": str(result.inserted_id),
+        "role": user_dict["role"]
+    }
 
 @router.post("/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):

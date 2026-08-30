@@ -1,6 +1,10 @@
 # backend/main.py
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
 import sys
@@ -21,6 +25,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# The frontend build is created by Render's build command at ``frontend/dist``.
+FRONTEND_DIST_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application startup and shutdown events."""
@@ -38,6 +45,9 @@ def create_app() -> FastAPI:
         title="Multimodal Healthcare AI API",
         description="API for Multimodal AI-Based Intelligent Healthcare System. ⚠️ FOR RESEARCH AND DECISION SUPPORT ONLY. NOT FOR CLINICAL DIAGNOSIS.",
         version="1.0.0",
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+        openapi_url="/api/openapi.json",
         lifespan=lifespan
     )
 
@@ -51,16 +61,36 @@ def create_app() -> FastAPI:
     )
 
     # Include Routers
-    application.include_router(auth_router)
-    application.include_router(patients_router)
-    application.include_router(prediction_router)
-    application.include_router(reports_router)
-    application.include_router(rag_router)
-    application.include_router(feedback_router)
+    application.include_router(auth_router, prefix="/api")
+    application.include_router(patients_router, prefix="/api")
+    application.include_router(prediction_router, prefix="/api")
+    application.include_router(reports_router, prefix="/api")
+    application.include_router(rag_router, prefix="/api")
+    application.include_router(feedback_router, prefix="/api")
 
-    @application.get("/health", tags=["Health"])
+    @application.get("/api/health", tags=["Health"])
     async def health_check():
         return {"status": "healthy", "disclaimer": "Research prototype only. Not for clinical diagnosis."}
+
+    # Mount only the hashed Vite assets.  The catch-all below then returns
+    # index.html for client-side React routes such as /dashboard.
+    assets_dir = FRONTEND_DIST_DIR / "assets"
+    if assets_dir.is_dir():
+        application.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @application.get("/{full_path:path}", include_in_schema=False)
+    async def serve_frontend(full_path: str):
+        """Serve the compiled React app and support client-side routing."""
+        if full_path.startswith("api/"):
+            return JSONResponse(status_code=404, content={"detail": "API endpoint not found"})
+
+        if not FRONTEND_DIST_DIR.is_dir():
+            return {"detail": "Frontend build not found"}
+
+        requested_file = FRONTEND_DIST_DIR / full_path
+        if full_path and requested_file.is_file():
+            return FileResponse(requested_file)
+        return FileResponse(FRONTEND_DIST_DIR / "index.html")
 
     return application
 
