@@ -1,0 +1,6 @@
+# Host-run development override for run_local.sh.
+# The default Compose deployment keeps MongoDB internal-only.
+services:
+  mongodb:
+    ports:
+      - "127.0.0.1:27017:27017"

@@ -2,8 +2,6 @@ services:
   mongodb:
     image: mongo:7.0
     container_name: healthcare_mongodb
-    ports:
-      - "127.0.0.1:27017:27017"
     volumes:
       - mongodb_data:/data/db
     environment:
@@ -26,22 +24,21 @@ services:
     env_file:
       - .env
     environment:
-      - MONGODB_URI=mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongodb:27017/multimodal_healthcare?authSource=admin
-    volumes:
-      - ./backend:/app
-      - ./backend/models:/app/models
-      - ./knowledge_base:/app/knowledge_base
+      - MONGODB_URI=mongodb://admin:Admin%4012345@mongodb:27017/multimodal_healthcare?authSource=admin
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
     depends_on:
       mongodb:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
     container_name: healthcare_frontend
     ports:
       - "80:80"

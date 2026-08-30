@@ -1,9 +1,19 @@
 import axios from 'axios';
 
-// Render serves this build and FastAPI from the same origin in production.
-// Keep a direct backend URL for the local Vite development server.
-const API_BASE_URL = import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
+// VITE_API_URL may be a host (Docker/local development) or an API path
+// (Vercel/Render). Normalize both forms to the same /api contract.
+const configuredApiUrl = import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? 'http://localhost:8000' : '/api');
+const API_BASE_URL = configuredApiUrl.replace(/\/$/, '').endsWith('/api')
+  ? configuredApiUrl.replace(/\/$/, '')
+  : `${configuredApiUrl.replace(/\/$/, '')}/api`;
+
+const getApiError = (error, fallback = 'The request could not be completed.') => {
+  if (!error.response) {
+    return 'The backend is unavailable. Check the API URL and deployment status.';
+  }
+  return error.response.data?.detail || error.response.data?.message || fallback;
+};
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -41,14 +51,23 @@ export const authService = {
       }
       throw new Error('No token received');
     } catch (error) {
-      console.error('Login error details:', error.response?.data || error.message);
-      throw error;
+      console.error('Login request failed', {
+        status: error.response?.status,
+        detail: error.response?.data?.detail,
+        message: error.message,
+      });
+      throw new Error(getApiError(error, 'Login failed. Please check your credentials.'));
     }
   },
 
   register: async (userData) => {
-    const response = await api.post('/auth/register', userData);
-    return response.data;
+    try {
+      const response = await api.post('/auth/register', userData);
+      return response.data;
+    } catch (error) {
+      console.error('Registration request failed', error.response?.data || error.message);
+      throw new Error(getApiError(error, 'Registration failed.'));
+    }
   },
 };
 

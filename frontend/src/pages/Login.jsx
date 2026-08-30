@@ -25,7 +25,7 @@ function Login({ onLogin }) {
       await authService.login(username, password);
       onLogin();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
+      setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }

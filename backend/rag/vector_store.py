@@ -1,24 +1,19 @@
 # backend/rag/vector_store.py
+import logging
 import os
 from pathlib import Path
-import faiss
-import numpy as np
-import logging
-from typing import List, Dict, Tuple, Optional
-from sentence_transformers import SentenceTransformer
+from typing import Dict, List, Optional
 
-from rag.document_loader import DocumentLoader
+import numpy as np
+
 from rag.chunker import RecursiveTextChunker
 
 logger = logging.getLogger(__name__)
 
+
 class MedicalVectorStore:
-    """
-    Manages the FAISS vector index for the RAG pipeline.
-    Uses cosine similarity (Inner Product on normalized vectors).
-    
-    Embedding Dimension: 384 (all-MiniLM-L6-v2)
-    """
+    """Manage the optional FAISS vector index for the RAG pipeline."""
+
     def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2", index_path: str = None):
         if index_path is None:
             index_path = str(Path(__file__).resolve().parent.parent / "data" / "vector_store")
@@ -26,140 +21,98 @@ class MedicalVectorStore:
         self.index_path = index_path
         self.index_file = os.path.join(index_path, "medical_index.faiss")
         self.chunks_file = os.path.join(index_path, "chunks.npy")
-        
         os.makedirs(index_path, exist_ok=True)
-        
-        # Do not download or initialize the embedding model at application import
-        # time. A RAG query is the first operation that needs it.
-        self.embedding_model: Optional[SentenceTransformer] = None
+
+        self.embedding_model = None
         self.dimension: Optional[int] = None
-        
         self.chunks: List[Dict[str, str]] = []
         self.index = None
-        
-        # Try to load existing index
         self._load_index()
 
     def _load_index(self):
-        """Loads the FAISS index and chunks from disk if they exist."""
-        if os.path.exists(self.index_file) and os.path.exists(self.chunks_file):
-            logger.info("Loading existing FAISS index from disk...")
+        """Load the FAISS index only when FAISS is installed and files exist."""
+        if not (os.path.exists(self.index_file) and os.path.exists(self.chunks_file)):
+            logger.info("No existing index found. It will be initialized when building the index.")
+            return
+        try:
+            import faiss
             self.index = faiss.read_index(self.index_file)
             self.dimension = self.index.d
             self.chunks = np.load(self.chunks_file, allow_pickle=True).tolist()
-            logger.info(f"Loaded index with {self.index.ntotal} vectors.")
-        else:
-            logger.info("No existing index found. It will be initialized when building the index.")
+            logger.info("Loaded index with %s vectors.", self.index.ntotal)
+        except Exception:
+            logger.exception("FAISS index could not be loaded; RAG search is disabled")
             self.index = None
 
-    def _get_embedding_model(self) -> SentenceTransformer:
-        """Load the embedding model only when a query or index build requires it."""
+    def _get_embedding_model(self):
+        """Load the embedding model lazily and degrade gracefully on failure."""
         if self.embedding_model is None:
             try:
-                logger.info(f"Loading embedding model: {self.model_name}")
+                logger.info("Loading embedding model: %s", self.model_name)
+                from sentence_transformers import SentenceTransformer
                 self.embedding_model = SentenceTransformer(self.model_name, device="cpu")
                 self.dimension = self.embedding_model.get_sentence_embedding_dimension()
-                logger.info(f"Successfully loaded embedding model. Dimension: {self.dimension}")
-            except Exception as e:
-                logger.error(
-                    f"Failed to load embedding model '{self.model_name}': {e}. "
-                    f"Vector store will return empty results. Please verify sentence-transformers installation."
-                )
+            except Exception:
+                logger.exception("Embedding model failed to load; RAG search is disabled")
                 self.embedding_model = None
                 return None
         return self.embedding_model
 
     def build_index(self, docs_dir: str = "knowledge_base/documents"):
-        """Ingests documents, chunks them, embeds them, and builds the FAISS index."""
-        logger.info("Starting RAG index build process...")
-        
-        # 1. Load and Chunk
-        loader = DocumentLoader(docs_dir)
-        docs = loader.load_documents()
-        
-        if not docs:
-            logger.warning("No documents found to build index. Please add PDFs/TXTs to knowledge_base/documents/")
+        """Ingest documents, build embeddings, and persist a FAISS index."""
+        try:
+            from rag.document_loader import DocumentLoader
+        except Exception:
+            logger.exception("Document loader unavailable; RAG index build is disabled")
             return
-            
-        chunker = RecursiveTextChunker(chunk_size=500, chunk_overlap=50)
-        self.chunks = chunker.chunk_documents(docs)
-        
-        # 2. Try to get embedding model
+        docs = DocumentLoader(docs_dir).load_documents()
+        if not docs:
+            logger.warning("No documents found to build index.")
+            return
+
+        self.chunks = RecursiveTextChunker(chunk_size=500, chunk_overlap=50).chunk_documents(docs)
         embedding_model = self._get_embedding_model()
         if embedding_model is None:
-            logger.error("Cannot build index: embedding model failed to load. Index will remain empty.")
             return
-        
-        # 3. Embed
-        texts = [chunk["text"] for chunk in self.chunks]
-        logger.info(f"Embedding {len(texts)} chunks...")
-        
         try:
+            import faiss
+            texts = [chunk["text"] for chunk in self.chunks]
             embeddings = embedding_model.encode(texts, show_progress_bar=True, convert_to_numpy=True)
-        except Exception as e:
-            logger.error(f"Error during embedding: {e}. Index build failed.")
-            self.chunks = []
-            self.index = None
-            return
-        
-        # 4. Normalize for Cosine Similarity
-        faiss.normalize_L2(embeddings)
-        
-        # 5. Add to FAISS
-        self.index = faiss.IndexFlatIP(self.dimension)
-        self.index.add(embeddings)
-        
-        # 6. Save to disk
-        try:
+            faiss.normalize_L2(embeddings)
+            self.index = faiss.IndexFlatIP(self.dimension)
+            self.index.add(embeddings)
             faiss.write_index(self.index, self.index_file)
             np.save(self.chunks_file, self.chunks)
-            logger.info(f"FAISS index built and saved with {self.index.ntotal} vectors.")
-        except Exception as e:
-            logger.error(f"Error saving FAISS index: {e}")
-
+            logger.info("FAISS index built and saved with %s vectors.", self.index.ntotal)
+        except Exception:
+            logger.exception("RAG index build failed")
+            self.index = None
 
     def search(self, query: str, top_k: int = 3) -> List[Dict[str, str]]:
-        """
-        Searches the vector store for the top-k most relevant chunks.
-        
-        Input: Query string (e.g., "Pneumonia symptoms and treatment guidelines").
-        Output: List of top-k chunk dictionaries.
-        
-        Returns empty list if model fails to load or index is empty.
-        """
+        """Return relevant chunks, or an empty list when RAG is unavailable."""
         if self.index is None or self.index.ntotal == 0:
             logger.warning("Vector store is empty. Cannot perform search.")
             return []
-        
-        # Try to get embedding model; if it fails, return empty results
         embedding_model = self._get_embedding_model()
         if embedding_model is None:
-            logger.warning("Embedding model failed to load. Returning empty search results.")
             return []
-            
         try:
-            # Embed and normalize query
+            import faiss
             query_embedding = embedding_model.encode([query], convert_to_numpy=True)
             faiss.normalize_L2(query_embedding)
-            
-            # Search
             scores, indices = self.index.search(query_embedding, top_k)
-            
-            # Retrieve chunks
-            results = []
-            for idx, score in zip(indices[0], scores[0]):
-                if idx != -1:  # FAISS returns -1 if not enough results
-                    chunk = self.chunks[idx]
-                    results.append({
-                        "text": chunk["text"],
-                        "metadata": chunk["metadata"],
-                        "score": float(score)
-                    })
-                    
-            return results
-        except Exception as e:
-            logger.error(f"Error during vector search: {e}. Returning empty results.")
+            return [
+                {
+                    "text": self.chunks[index]["text"],
+                    "metadata": self.chunks[index]["metadata"],
+                    "score": float(score),
+                }
+                for index, score in zip(indices[0], scores[0])
+                if index != -1
+            ]
+        except Exception:
+            logger.exception("RAG search failed; returning empty results")
             return []
 
-# Global instance
+
 vector_store = MedicalVectorStore()

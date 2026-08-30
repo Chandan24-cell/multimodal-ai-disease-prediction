@@ -1,4 +1,6 @@
 # backend/main.py
+import os
+import sys
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -7,9 +9,14 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
-import sys
 
-from database.mongodb import connect_to_mongo, close_mongo_connection
+# Existing backend modules use top-level imports (api, database, inference).
+# Add this directory so `backend.main` works when launched from the repository root.
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
+
+from database.mongodb import connect_to_mongo, close_mongo_connection, db, settings
 from api.auth import router as auth_router
 from api.patients import router as patients_router
 from api.prediction import router as prediction_router
@@ -25,15 +32,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# The frontend build is created by Render's build command at ``frontend/dist``.
-FRONTEND_DIST_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+# Resolve from this file, never from the shell's current working directory.
+FRONTEND_DIST_DIR = Path(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application startup and shutdown events."""
     # Startup
     logger.info("Starting up application...")
-    await connect_to_mongo()
+    try:
+        await connect_to_mongo()
+    except Exception:
+        logger.exception("Application started with MongoDB unavailable")
     yield
     # Shutdown
     logger.info("Shutting down application...")
@@ -51,10 +63,17 @@ def create_app() -> FastAPI:
         lifespan=lifespan
     )
 
-    # CORS Middleware
+    configured_origins = {
+        "http://localhost",
+        "http://localhost:5173",
+        "http://localhost:3000",
+        settings.FRONTEND_URL.rstrip("/"),
+    }
+    allowed_origins = [origin for origin in configured_origins if origin]
+
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost", "http://localhost:5173", "http://localhost:3000"],
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -70,27 +89,39 @@ def create_app() -> FastAPI:
 
     @application.get("/api/health", tags=["Health"])
     async def health_check():
-        return {"status": "healthy", "disclaimer": "Research prototype only. Not for clinical diagnosis."}
+        database_status = "connected" if db.client is not None and db.db is not None else "disconnected"
+        return {
+            "status": "healthy" if database_status == "connected" else "degraded",
+            "database": database_status,
+            "disclaimer": "Research prototype only. Not for clinical diagnosis.",
+        }
 
-    # Mount only the hashed Vite assets.  The catch-all below then returns
-    # index.html for client-side React routes such as /dashboard.
-    assets_dir = FRONTEND_DIST_DIR / "assets"
-    if assets_dir.is_dir():
-        application.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+    # A combined deployment can serve the Vite build from FastAPI. In the
+    # normal Compose deployment Nginx serves it from the separate frontend
+    # container, so this mount is intentionally conditional.
+    if FRONTEND_DIST_DIR.is_dir():
+        logger.info("Serving frontend build from %s", FRONTEND_DIST_DIR)
+        assets_dir = FRONTEND_DIST_DIR / "assets"
+        if assets_dir.is_dir():
+            application.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-    @application.get("/{full_path:path}", include_in_schema=False)
-    async def serve_frontend(full_path: str):
-        """Serve the compiled React app and support client-side routing."""
-        if full_path.startswith("api/"):
-            return JSONResponse(status_code=404, content={"detail": "API endpoint not found"})
+        @application.get("/{full_path:path}", include_in_schema=False)
+        async def serve_frontend(full_path: str):
+            """Serve assets and index.html for React client-side routes."""
+            if full_path.startswith("api/"):
+                return JSONResponse(status_code=404, content={"detail": "API endpoint not found"})
+            requested_file = FRONTEND_DIST_DIR / full_path
+            if full_path and requested_file.is_file():
+                return FileResponse(requested_file)
+            return FileResponse(FRONTEND_DIST_DIR / "index.html")
+    else:
+        logger.info("Frontend build not found at %s; expecting a separate frontend service", FRONTEND_DIST_DIR)
 
-        if not FRONTEND_DIST_DIR.is_dir():
+        @application.get("/{full_path:path}", include_in_schema=False)
+        async def frontend_build_missing(full_path: str):
+            if full_path.startswith("api/"):
+                return JSONResponse(status_code=404, content={"detail": "API endpoint not found"})
             return {"detail": "Frontend build not found"}
-
-        requested_file = FRONTEND_DIST_DIR / full_path
-        if full_path and requested_file.is_file():
-            return FileResponse(requested_file)
-        return FileResponse(FRONTEND_DIST_DIR / "index.html")
 
     return application
 

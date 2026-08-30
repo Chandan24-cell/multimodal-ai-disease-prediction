@@ -25,9 +25,8 @@ class MedicalViTModel(nn.Module):
         
         # Determine checkpoint path
         if checkpoint_path is None:
-            checkpoint_path = str(
-                Path(__file__).resolve().parent / "vit" / "medical_finetuned" / "model.safetensors"
-            )
+            checkpoint_path = Path(__file__).resolve().parent / "vit" / "medical_finetuned" / "model.safetensors"
+        checkpoint_path = Path(checkpoint_path).expanduser().resolve()
         
         # Try to load pretrained ViT with safetensors checkpoint
         try:

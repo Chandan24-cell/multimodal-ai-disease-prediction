@@ -5,11 +5,13 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from typing import Any, Dict
+import logging
 
 from database.mongodb import db, settings
 from database.schemas import UserCreate, UserDB, Token, TokenData
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+logger = logging.getLogger(__name__)
 
 # Security utilities
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -58,6 +60,10 @@ async def register(user_in: UserCreate):
     - First user registered in the system gets role="Admin"
     - All subsequent users get role="Staff"
     """
+    if db.db is None:
+        logger.error("Registration rejected because MongoDB is not connected")
+        raise HTTPException(status_code=503, detail="Authentication service unavailable")
+
     existing_user = await db.db.users.find_one({"$or": [{"username": user_in.username}, {"email": user_in.email}]})
     if existing_user:
         raise HTTPException(status_code=400, detail="Username or email already registered")
@@ -65,15 +71,10 @@ async def register(user_in: UserCreate):
     user_dict = user_in.model_dump()
     user_dict["hashed_password"] = get_password_hash(user_dict.pop("password"))
     
-    # Determine if this is the first user in the system
+    # Determine if this is the first user in the system. Never allow a later
+    # public registration to grant itself Admin access.
     user_count = await db.db.users.count_documents({})
-    if user_count == 0:
-        # First user is Admin
-        user_dict["role"] = "Admin"
-    else:
-        # Subsequent users default to Staff (can be overridden in request)
-        if "role" not in user_dict or user_dict["role"] is None:
-            user_dict["role"] = "Staff"
+    user_dict["role"] = "Admin" if user_count == 0 else "Staff"
     
     result = await db.db.users.insert_one(user_dict)
     return {
@@ -85,13 +86,25 @@ async def register(user_in: UserCreate):
 @router.post("/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     """Authenticate user and return JWT."""
+    logger.info("Login attempt username=%s", form_data.username)
+    if db.db is None:
+        logger.error("Login rejected because MongoDB is not connected")
+        raise HTTPException(status_code=503, detail="Authentication service unavailable")
+
     user = await db.db.users.find_one({"username": form_data.username})
-    if not user or not verify_password(form_data.password, user["hashed_password"]):
+    password_valid = bool(user and verify_password(form_data.password, user["hashed_password"]))
+    if not user:
+        logger.warning("Login failed: unknown username=%s", form_data.username)
+    elif not password_valid:
+        logger.warning("Login failed: invalid password username=%s", form_data.username)
+
+    if not password_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    access_token = create_access_token(data={"sub": user["username"]})
+    logger.info("Login succeeded username=%s role=%s", user["username"], user.get("role", "Staff"))
+    access_token = create_access_token(data={"sub": user["username"], "role": user.get("role", "Staff")})
     return {"access_token": access_token, "token_type": "bearer"}

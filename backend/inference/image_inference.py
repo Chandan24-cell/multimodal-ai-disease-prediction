@@ -1,13 +1,15 @@
 # backend/inference/image_inference.py
 import torch
-from torchvision import transforms
 from PIL import Image
 import io
+import numpy as np
 from typing import Dict, Tuple
 import logging
+from pathlib import Path
 from models.vit_model import MedicalViTModel
 
 logger = logging.getLogger(__name__)
+MODEL_DIR = Path(__file__).resolve().parents[1] / "models" / "vit" / "medical_finetuned"
 
 class ImageInferencePipeline:
     """
@@ -30,19 +32,16 @@ class ImageInferencePipeline:
 
         self.num_labels = 14 
         
-        self.processor = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-        ])
+        self.image_mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+        self.image_std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
         
         # Initialize ViT model - strictly uses Vision Transformer
         # No MobileNet fallback; checkpoint loading is built into MedicalViTModel
         try:
-            self.model = MedicalViTModel(num_labels=self.num_labels)
+            self.model = MedicalViTModel(
+                num_labels=self.num_labels,
+                checkpoint_path=str(MODEL_DIR / "model.safetensors"),
+            )
             self.model.to(self.device)
             self.model.eval()
             logger.info("Successfully loaded MedicalViTModel (768-dim embeddings, 14 labels)")
@@ -50,7 +49,7 @@ class ImageInferencePipeline:
             logger.error(f"Failed to initialize ViT model: {e}")
             raise RuntimeError(
                 f"Cannot initialize ViT model. Ensure checkpoint exists at "
-                f"backend/models/vit/medical_finetuned/model.safetensors. Error: {e}"
+                f"{MODEL_DIR / 'model.safetensors'}. Error: {e}"
             )
 
         # 14 medical conditions for multi-label classification
@@ -64,8 +63,11 @@ class ImageInferencePipeline:
 
     def preprocess_image(self, image_bytes: bytes) -> torch.Tensor:
         """Convert raw image bytes to preprocessed tensor."""
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        return self.processor(image).unsqueeze(0).to(self.device)
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB").resize((224, 224))
+        image_array = np.asarray(image, dtype=np.float32) / 255.0
+        tensor = torch.from_numpy(image_array).permute(2, 0, 1)
+        tensor = (tensor - self.image_mean) / self.image_std
+        return tensor.unsqueeze(0).to(self.device)
 
     def predict(self, image_bytes: bytes) -> Tuple[Dict[str, float], torch.Tensor]:
         """

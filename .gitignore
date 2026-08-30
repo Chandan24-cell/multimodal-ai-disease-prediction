@@ -20,6 +20,7 @@ training.log
 # Frontend build output & deps
 frontend/node_modules/
 frontend/dist/
+backend/dist/
 
 # Editor/OS junk
 *.swp
