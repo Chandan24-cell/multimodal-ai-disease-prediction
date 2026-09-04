@@ -32,10 +32,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Resolve from this file, never from the shell's current working directory.
-FRONTEND_DIST_DIR = Path(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
-)
+# The production image copies the frontend build to backend/dist.
+FRONTEND_DIST_DIR = Path(__file__).resolve().parent / "dist"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

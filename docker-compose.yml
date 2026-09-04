@@ -9,22 +9,25 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      test: >-
+        mongosh localhost:27017/test --quiet --username "$${MONGO_INITDB_ROOT_USERNAME}"
+        --password "$${MONGO_INITDB_ROOT_PASSWORD}" --authenticationDatabase admin
+        --eval 'db.runCommand({ ping: 1 }).ok'
       interval: 10s
       timeout: 5s
       retries: 5
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: healthcare_backend
     ports:
       - "8000:8000"
     env_file:
       - .env
     environment:
-      - MONGODB_URI=mongodb://admin:Admin%4012345@mongodb:27017/multimodal_healthcare?authSource=admin
+      - MONGODB_URI=${MONGODB_URI:?MONGODB_URI must be set in .env}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
     depends_on:
       mongodb:

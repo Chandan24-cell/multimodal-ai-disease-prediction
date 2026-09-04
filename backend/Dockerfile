@@ -1,35 +1,28 @@
 # syntax=docker/dockerfile:1.7
 
-FROM python:3.11-slim AS builder
+FROM node:18-alpine AS frontend-builder
 
-WORKDIR /build
-ENV VIRTUAL_ENV=/opt/venv
-ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
 
-RUN python -m venv "${VIRTUAL_ENV}"
-COPY requirements-prod.txt ./
-# Render's build sandbox does not permit swapon. Keep pip's cache outside the
-# image and use a paid/pre-built build environment when memory is constrained.
-RUN --mount=type=cache,target=/root/.cache/pip \
-	pip install --no-cache-dir --upgrade pip \
-	&& pip install --no-cache-dir -r requirements-prod.txt
-
-FROM python:3.11-slim AS runtime
+FROM python:3.11-slim
 
 WORKDIR /app
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
-ENV PATH="/opt/venv/bin:${PATH}"
 
-COPY --from=builder /opt/venv /opt/venv
-COPY . ./
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/ ./
+COPY --from=frontend-builder /app/frontend/dist ./dist
 
-# model.safetensors is intentionally copied from the build context. Download
-# it before building (or use a registry image) instead of downloading in Docker.
 RUN useradd --create-home appuser \
-	&& chown -R appuser:appuser /app
+    && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

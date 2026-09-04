@@ -37,8 +37,8 @@ class ViTGradCAM:
     def __init__(self, model: MedicalViTModel, device: torch.device):
         self.device = device
         # Target the last layer of the ViT encoder
-        # HuggingFace ViT structure: model.vit.vit.encoder.layer[-1]
-        target_layer = model.vit.vit.encoder.layer[-1].output
+        # HuggingFace ViTModel structure: model.vit.encoder.layer[-1]
+        target_layer = model.vit.encoder.layer[-1].output
         self.cam = GradCAM(
             model=LogitsModel(model),
             target_layers=[target_layer],

@@ -1,38 +1,87 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
-if [[ -f "$ROOT_DIR/.env" ]]; then
-  set -a
-  source "$ROOT_DIR/.env"
-  set +a
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Error: Docker CLI is not installed or is not on PATH." >&2
+  exit 1
 fi
 
-if [[ ! -d "$ROOT_DIR/venv" ]]; then
-  python3 -m venv "$ROOT_DIR/venv"
+if ! docker info >/dev/null 2>&1; then
+  echo "Error: Docker is not running. Start Docker Desktop and run this script again." >&2
+  exit 1
 fi
 
-source "$ROOT_DIR/venv/bin/activate"
-python -m pip install --upgrade pip
-python -m pip install -r "$ROOT_DIR/backend/requirements.txt"
+if [[ ! -f "$ROOT_DIR/.env" ]]; then
+  echo "Error: .env is missing. Copy .env.example to .env and set secure values first." >&2
+  exit 1
+fi
 
-cd "$ROOT_DIR/frontend"
-npm install
-npm run build
-cd "$ROOT_DIR"
-
-# Compose provides the local authenticated MongoDB instance. Load credentials
-# from .env without printing them, then point the host-run backend at localhost.
-if command -v docker >/dev/null 2>&1; then
-  docker compose -f docker-compose.yml -f docker-compose.host.yml up -d mongodb
-  if [[ -n "${MONGO_ROOT_USER:-}" && -n "${MONGO_ROOT_PASSWORD:-}" ]]; then
-    export MONGODB_URI="mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@localhost:27017/multimodal_healthcare?authSource=admin"
+if command -v lsof >/dev/null 2>&1; then
+  port_owner="$(lsof -nP -iTCP:8000 -sTCP:LISTEN -t 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$port_owner" ]]; then
+    echo "Error: port 8000 is already in use by process $port_owner:" >&2
+    ps -p "$port_owner" -o pid=,comm=,args= >&2 || true
+    exit 1
   fi
 fi
 
-export PYTHONPATH="$ROOT_DIR/backend${PYTHONPATH:+:$PYTHONPATH}"
-echo "Application: http://localhost:8000"
-echo "Health:      http://localhost:8000/api/health"
-exec python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+echo "Starting Multimodal Healthcare AI..."
+docker compose down --remove-orphans >/dev/null 2>&1 || true
+
+build_log="$(mktemp)"
+trap 'rm -f "$build_log"' EXIT
+if ! docker compose build >"$build_log" 2>&1; then
+  echo "Error: Docker build failed." >&2
+  if grep -qi "frontend" "$build_log"; then
+    echo "Frontend build error:" >&2
+  fi
+  cat "$build_log" >&2
+  exit 1
+fi
+
+docker compose up -d
+
+echo "Waiting for MongoDB to become healthy..."
+for attempt in {1..30}; do
+  mongo_health="$(docker inspect -f '{{.State.Health.Status}}' healthcare_mongodb 2>/dev/null || true)"
+  if [[ "$mongo_health" == "healthy" ]]; then
+    break
+  fi
+  if [[ "$mongo_health" == "unhealthy" || "$attempt" -eq 30 ]]; then
+    echo "Error: MongoDB failed its healthcheck. Recent MongoDB logs:" >&2
+    docker compose logs --tail=100 mongodb >&2 || true
+    exit 1
+  fi
+  sleep 2
+done
+
+echo "Waiting for the backend to start..."
+for attempt in {1..30}; do
+  if curl -fsS http://localhost:8000/api/health >/dev/null 2>&1; then
+    echo "Backend is running"
+    break
+  fi
+  if [[ "$attempt" -eq 30 ]]; then
+    echo "Error: backend did not become healthy." >&2
+    docker compose ps >&2 || true
+    docker compose logs --tail=100 mongodb backend >&2 || true
+    exit 1
+  fi
+  sleep 2
+done
+
+echo
+echo "========================================="
+echo "Application is running"
+echo "========================================="
+echo "Frontend UI:        http://localhost"
+echo "Backend API Docs:   http://localhost:8000/api/docs"
+echo "Health check:       http://localhost:8000/api/health"
+echo "MongoDB:            localhost:27017 (internal Compose network)"
+echo "========================================="
+echo
+echo "To stop: docker compose down"
+echo "To view logs: docker compose logs -f"
