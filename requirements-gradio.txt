@@ -1,0 +1,10 @@
+torch==2.2.1
+torchvision==0.17.1
+transformers==4.35.2
+safetensors==0.4.1
+Pillow==10.2.0
+numpy==1.26.4
+gradio==4.44.1
+pymongo==4.6.1
+motor==3.3.2
+pydantic==2.6.1
