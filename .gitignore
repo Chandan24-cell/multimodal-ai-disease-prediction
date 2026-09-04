@@ -29,3 +29,6 @@ backend/dist/
 Thumbs.db
 .vscode/
 .idea/
+backend/.env
+venv/
+__pycache__/
