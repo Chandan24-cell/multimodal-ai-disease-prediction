@@ -14,9 +14,13 @@ logger = logging.getLogger(__name__)
 class MedicalVectorStore:
     """Manage the optional FAISS vector index for the RAG pipeline."""
 
-    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2", index_path: str = None):
+    def __init__(
+        self,
+        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        index_path: Optional[str] = None,
+    ):
         if index_path is None:
-            index_path = str(Path(__file__).resolve().parent.parent / "data" / "vector_store")
+            index_path = str(Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "faiss_index")
         self.model_name = model_name
         self.index_path = index_path
         self.index_file = os.path.join(index_path, "medical_index.faiss")
@@ -32,14 +36,15 @@ class MedicalVectorStore:
     def _load_index(self):
         """Load the FAISS index only when FAISS is installed and files exist."""
         if not (os.path.exists(self.index_file) and os.path.exists(self.chunks_file)):
-            logger.info("No existing index found. It will be initialized when building the index.")
+            logger.info("No existing FAISS index found. It will be built automatically on first use.")
             return
         try:
             import faiss
+
             self.index = faiss.read_index(self.index_file)
             self.dimension = self.index.d
             self.chunks = np.load(self.chunks_file, allow_pickle=True).tolist()
-            logger.info("Loaded index with %s vectors.", self.index.ntotal)
+            logger.info("Loaded FAISS index with %s vectors.", self.index.ntotal)
         except Exception:
             logger.exception("FAISS index could not be loaded; RAG search is disabled")
             self.index = None
@@ -50,6 +55,7 @@ class MedicalVectorStore:
             try:
                 logger.info("Loading embedding model: %s", self.model_name)
                 from sentence_transformers import SentenceTransformer
+
                 self.embedding_model = SentenceTransformer(self.model_name, device="cpu")
                 self.dimension = self.embedding_model.get_sentence_embedding_dimension()
             except Exception:
@@ -65,22 +71,26 @@ class MedicalVectorStore:
         except Exception:
             logger.exception("Document loader unavailable; RAG index build is disabled")
             return
+
         docs = DocumentLoader(docs_dir).load_documents()
         if not docs:
             logger.warning("No documents found to build index.")
             return
 
-        self.chunks = RecursiveTextChunker(chunk_size=500, chunk_overlap=50).chunk_documents(docs)
+        self.chunks = RecursiveTextChunker(chunk_size=600, chunk_overlap=80).chunk_documents(docs)
         embedding_model = self._get_embedding_model()
         if embedding_model is None:
             return
         try:
             import faiss
+
             texts = [chunk["text"] for chunk in self.chunks]
-            embeddings = embedding_model.encode(texts, show_progress_bar=True, convert_to_numpy=True)
+            embeddings = embedding_model.encode(texts, show_progress_bar=False, convert_to_numpy=True)
+            if embeddings.ndim == 1:
+                embeddings = embeddings.reshape(1, -1)
             faiss.normalize_L2(embeddings)
-            self.index = faiss.IndexFlatIP(self.dimension)
-            self.index.add(embeddings)
+            self.index = faiss.IndexFlatIP(self.dimension or embeddings.shape[1])
+            self.index.add(embeddings.astype("float32"))
             faiss.write_index(self.index, self.index_file)
             np.save(self.chunks_file, self.chunks)
             logger.info("FAISS index built and saved with %s vectors.", self.index.ntotal)
@@ -91,16 +101,22 @@ class MedicalVectorStore:
     def search(self, query: str, top_k: int = 3) -> List[Dict[str, str]]:
         """Return relevant chunks, or an empty list when RAG is unavailable."""
         if self.index is None or self.index.ntotal == 0:
-            logger.warning("Vector store is empty. Cannot perform search.")
+            logger.warning("Vector store is empty. Building index automatically on first use.")
+            self.build_index()
+        if self.index is None or self.index.ntotal == 0:
             return []
+
         embedding_model = self._get_embedding_model()
         if embedding_model is None:
             return []
         try:
             import faiss
+
             query_embedding = embedding_model.encode([query], convert_to_numpy=True)
+            if query_embedding.ndim == 1:
+                query_embedding = query_embedding.reshape(1, -1)
             faiss.normalize_L2(query_embedding)
-            scores, indices = self.index.search(query_embedding, top_k)
+            scores, indices = self.index.search(query_embedding.astype("float32"), top_k)
             return [
                 {
                     "text": self.chunks[index]["text"],
@@ -108,7 +124,7 @@ class MedicalVectorStore:
                     "score": float(score),
                 }
                 for index, score in zip(indices[0], scores[0])
-                if index != -1
+                if index != -1 and index < len(self.chunks)
             ]
         except Exception:
             logger.exception("RAG search failed; returning empty results")

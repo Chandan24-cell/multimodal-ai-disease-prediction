@@ -1,0 +1,5 @@
+A pulmonary nodule is a rounded opacity measuring less than 3 cm, often seen incidentally on chest imaging. Typical radiographic features include a small, circumscribed lesion with variable density and, if calcified, a benign pattern such as popcorn or dense central calcification. A smooth margin and stable size over time are reassuring, whereas irregular margins, spiculation, or growth raise concern.
+
+The differential diagnosis includes granuloma, infectious focus, previous inflammatory scar, primary lung cancer, and metastatic disease. Characterization depends on size, density, location, and interval growth; solitary nodules require careful comparison with prior imaging. Some nodules represent benign infectious granulomas, while others may be early malignancies.
+
+Recommended workup generally includes comparison with prior imaging and CT for nodule morphology, density, and size. If the lesion is indeterminate or enlarging, a management algorithm incorporating risk factors, follow-up interval imaging, or biopsy is appropriate.

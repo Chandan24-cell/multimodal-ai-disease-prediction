@@ -1,0 +1,5 @@
+A pulmonary mass is a rounded or irregular opacity that is at least 3 cm in diameter and may represent a primary lung neoplasm, metastatic lesion, or focal infection. On chest radiography, a mass usually appears as a well-defined or irregular lesion that may be associated with lobar atelectasis, pleural effusion, hilar adenopathy, or adjacent soft-tissue density. The margin and location can provide clues, but imaging alone often cannot distinguish benign from malignant lesions.
+
+The differential diagnosis includes pneumonia, organizing pneumonia, lung abscess, large granuloma, and less commonly focal fibrosis or infarct. A spiculated lesion or associated adenopathy raises concern for malignancy, whereas a smooth and well-defined lesion may be more consistent with a benign process. Clinical context, smoking history, and prior imaging are crucial.
+
+Recommended workup typically includes chest CT for better characterization, evaluation of local invasion, and staging of mediastinal or hilar disease. If suspicious, tissue diagnosis through bronchoscopy, biopsy, or PET-CT may be warranted depending on location and patient factors.

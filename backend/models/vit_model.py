@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from transformers import ViTModel, ViTConfig
+from transformers import ViTConfig, ViTModel
 from pathlib import Path
 import logging
 
@@ -28,50 +28,48 @@ class MedicalViTModel(nn.Module):
             checkpoint_path = Path(__file__).resolve().parent / "vit" / "medical_finetuned" / "model.safetensors"
         checkpoint_path = Path(checkpoint_path).expanduser().resolve()
         
-        # Try to load pretrained ViT with safetensors checkpoint
+        # The local checkpoint was exported by Hugging Face
+        # ``ViTForImageClassification`` and contains both ``vit.*`` and
+        # ``classifier.*`` tensors. Loading only the backbone makes disease
+        # scores come from a newly random classifier head.
+        # Do not provide a random-initialized fallback for clinical inference.
         try:
             logger.info(f"Loading ViT from checkpoint: {checkpoint_path}")
-            # ViT-base from transformers (hidden_size=768)
-            config = ViTConfig(
-                image_size=224,
-                patch_size=16,
-                num_labels=num_labels,
-                hidden_size=768,
-                num_hidden_layers=12,
-                num_attention_heads=12,
-                intermediate_size=3072,
-                problem_type="multi_label_classification",
-            )
-            self.vit = ViTModel(config)
-            
-            # Load safetensors checkpoint if it exists
-            if Path(checkpoint_path).exists():
-                logger.info(f"Loading weights from {checkpoint_path}")
-                from safetensors.torch import load_file
-                state_dict = load_file(checkpoint_path)
-                # Filter to only vit keys if needed
-                vit_state_dict = {
-                    k.replace("vit.", ""): v for k, v in state_dict.items() 
-                    if k.startswith("vit.")
-                } or state_dict
-                self.vit.load_state_dict(vit_state_dict, strict=False)
-                logger.info("Successfully loaded checkpoint weights")
-            else:
-                logger.warning(f"Checkpoint not found at {checkpoint_path}. Using random initialization.")
-        except Exception as e:
-            logger.error(f"Error loading ViT checkpoint: {e}. Using default ViT initialization.")
-            config = ViTConfig(
-                image_size=224,
-                patch_size=16,
-                hidden_size=768,
-                num_hidden_layers=12,
-                num_attention_heads=12,
-                intermediate_size=3072,
-            )
-            self.vit = ViTModel(config)
+            if not checkpoint_path.is_file():
+                raise FileNotFoundError(f"ViT checkpoint does not exist: {checkpoint_path}")
 
-        # Classification head for multi-label
-        self.classifier = nn.Linear(self.embedding_dim, num_labels)
+            config_dir = checkpoint_path.parent
+            config = ViTConfig.from_pretrained(config_dir)
+            if config.num_labels != num_labels:
+                raise ValueError(
+                    f"Checkpoint config declares {config.num_labels} labels; expected {num_labels}."
+                )
+
+            # ViTForImageClassification has no pooler tensors. Mirroring that
+            # layout lets strict loading verify every checkpoint tensor.
+            self.vit = ViTModel(config, add_pooling_layer=False)
+            self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+            from safetensors.torch import load_file
+
+            state_dict = load_file(checkpoint_path, device="cpu")
+            load_result = self.load_state_dict(state_dict, strict=True)
+            if load_result.missing_keys or load_result.unexpected_keys:
+                raise RuntimeError(
+                    "Checkpoint key mismatch: "
+                    f"missing={load_result.missing_keys}, unexpected={load_result.unexpected_keys}"
+                )
+            self.eval()
+            logger.info(
+                "Loaded complete ViT checkpoint strictly: %d tensors, classifier=%s",
+                len(state_dict),
+                tuple(self.classifier.weight.shape),
+            )
+        except Exception as e:
+            logger.exception("Failed to load the complete ViT checkpoint")
+            raise RuntimeError(
+                f"Cannot load trained ViT checkpoint at {checkpoint_path}: {e}"
+            ) from e
 
     def forward(self, pixel_values, labels=None):
         """

@@ -1,0 +1,5 @@
+Infiltration is a broad radiographic term for abnormal opacification within the lung caused by inflammation, edema, hemorrhage, or lesser-known parenchymal processes. They may appear as ill-defined patchy or linear opacities that do not conform to a classic lobar distribution, often making interpretation less specific than pneumonia or atelectasis. Infiltrate findings can overlap substantially with infection, aspiration, edema, or early organizing pneumonia.
+
+The differential diagnosis includes pneumonia, pulmonary edema, aspiration, hemorrhage, and inflammatory lung disease. The term is often descriptive rather than diagnostic; the exact etiology depends on the pattern of opacity and the clinical setting. A reticular or diffuse nodular infiltrate suggests a different process than a focal patch of consolidation.
+
+Recommended next steps generally include correlation with symptoms, oxygenation, fever, and sputum production. Repeat imaging, infectious workup, and consideration of CT are appropriate when the infiltrate is persistent, atypical, or associated with systemic illness.

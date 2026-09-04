@@ -79,7 +79,7 @@ class ImageInferencePipeline:
         """
         pixel_values = self.preprocess_image(image_bytes)
         
-        with torch.no_grad():
+        with torch.inference_mode():
             # Get full hidden state for explainability
             last_hidden_state = self.model.get_last_hidden_state(pixel_values)
             # CLS token embedding: (batch, 768) -> squeeze to (768,)
@@ -90,6 +90,11 @@ class ImageInferencePipeline:
             # Forward pass for predictions
             outputs = self.model(pixel_values)
             logits = outputs.logits  # (batch, 14)
+            if logits.shape != (1, self.num_labels):
+                raise RuntimeError(
+                    f"Unexpected ViT logits shape {tuple(logits.shape)}; "
+                    f"expected (1, {self.num_labels})."
+                )
             probs = torch.sigmoid(logits).squeeze(0).cpu().numpy()
             
         predictions = {cls: float(prob) for cls, prob in zip(self.class_names, probs)}

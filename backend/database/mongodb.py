@@ -20,8 +20,12 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
     LLM_PROVIDER: str = "mock"
     OPENAI_API_KEY: Optional[str] = None
+    OPENAI_MODEL: str = "gpt-4o-mini"
     ANTHROPIC_API_KEY: Optional[str] = None
     OLLAMA_BASE_URL: Optional[str] = None
+    OLLAMA_MODEL: str = "llama2"
+    HF_API_KEY: Optional[str] = None
+    HF_MODEL: str = "mistralai/Mistral-7B-Instruct-v0.2"
 
     class Config:
         env_file = Path(__file__).resolve().parent.parent / ".env"
@@ -63,3 +67,15 @@ async def close_mongo_connection():
         logger.info("Closing MongoDB connection...")
         db.client.close()
         logger.info("MongoDB connection closed.")
+
+
+async def save_prediction_to_mongo(prediction_data: dict) -> Optional[str]:
+    """Persist a generated analysis without making MongoDB a hard dependency."""
+    try:
+        if db.db is None:
+            await connect_to_mongo()
+        result = await db.db.predictions.insert_one(prediction_data)
+        return str(result.inserted_id)
+    except Exception:
+        logger.exception("Unable to save prediction to MongoDB; continuing without persistence")
+        return None

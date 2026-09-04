@@ -1,0 +1,5 @@
+Pneumothorax is air in the pleural space, causing partial or complete collapse of the affected lung. On chest radiography, it typically appears as a pleural line with absent peripheral lung markings beyond it, often at the apices in upright films. Large pneumothoraces can produce marked asymmetry or mediastinal shift depending on severity, while small and loculated collections may be subtle and require expiratory or lateral decubitus imaging.
+
+The differential diagnosis includes bullous lung disease, subcutaneous emphysema, and skin folds or overlying artifacts. Bilateral pneumothoraces or a very large pneumothorax can be life-threatening and should be interpreted urgently in the context of patient symptoms. In trauma or postoperative settings, a simple pneumothorax may coexist with hemothorax or contusion.
+
+Recommended next steps include immediate assessment of hemodynamic stability and chest tube placement or aspiration based on the size and symptoms, especially in unstable patients. Follow-up imaging is used to confirm resolution and to assess for recurrence or underlying pleural disease.

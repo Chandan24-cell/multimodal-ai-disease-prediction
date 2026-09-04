@@ -1,0 +1,5 @@
+Emphysema is a chronic obstructive airspace disease characterized by destruction of alveolar walls and hyperinflation. On chest radiography, classic findings include increased anteroposterior diameter, low flattened diaphragms, increased retrosternal airspace, and diminished vascular markings at the lung periphery. Hyperinflation can produce a barrel chest appearance and may be associated with bullae or focal lucencies.
+
+The differential diagnosis includes chronic bronchitis, asthma, bronchiectasis, and bullous lung disease. Imaging often needs to be interpreted alongside smoking history and pulmonary function testing because lesions can overlap with asthma or other chronic obstructive phenotypes. Bullae can also mimic cystic changes, and not all hyperinflated chest radiographs represent emphysema.
+
+Recommended workup includes pulmonary function tests, smoking cessation counseling, and assessment for acute exacerbations. Chest CT may be useful when the diagnosis is uncertain or when there is concern for bronchogenic carcinoma, giant bullae, or other structural lung disease.
